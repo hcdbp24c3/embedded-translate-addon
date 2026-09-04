@@ -1,0 +1,9 @@
+services:
+  server:
+    build: .
+    ports: ["5100:3000"]
+    volumes: ["./data:/data"]
+    environment: ["PORT=3000", "REDIS_URL=redis://redis:6379", "PUBLIC_URL=http://localhost:5100"]
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]

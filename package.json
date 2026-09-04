@@ -1,0 +1,14 @@
+{
+  "name": "embedded-translate",
+  "private": true,
+  "workspaces": ["server", "addon", "web"],
+  "scripts": {
+    "dev": "concurrently \"npm:dev:*\"",
+    "build": "npm run build --workspaces",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "vitest": "^1.4.0",
+    "concurrently": "^8.2.2"
+  }
+}

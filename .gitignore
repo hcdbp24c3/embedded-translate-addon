@@ -1,0 +1,8 @@
+node_modules/
+data/subs/
+data/cache.db
+web/dist/
+server/dist/
+server/public/*
+!.gitkeep
+.env
