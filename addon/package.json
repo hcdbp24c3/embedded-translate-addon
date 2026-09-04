@@ -1,0 +1,7 @@
+{
+  "name": "addon",
+  "type": "module",
+  "dependencies": {
+    "stremio-addon-sdk": "^1.6.0"
+  }
+}
