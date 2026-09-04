@@ -1,9 +1,15 @@
 import Fastify from 'fastify'
 import healthRoutes from './routes/health.js'
+import subtitleRoutes from './routes/subtitle.js'
+import subRoutes from './routes/sub.js'
+import configRoutes from './routes/config.js'
 
 export async function buildApp() {
   const app = Fastify({ logger: false })
   await app.register(healthRoutes)
+  await app.register(subtitleRoutes)
+  await app.register(subRoutes)
+  await app.register(configRoutes)
   return app
 }
 
