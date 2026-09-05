@@ -7,13 +7,13 @@ import subtitleRoutes from './routes/subtitle.js'
 import subRoutes from './routes/sub.js'
 import configRoutes from './routes/config.js'
 import manifestRoutes from './routes/manifest.js'
+import streamCacheRoutes from './routes/streamCache.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 export async function buildApp() {
   const app = Fastify({ logger: false })
 
-  // CORS early
   app.addHook('onRequest', async (req, reply) => {
     reply.header('Access-Control-Allow-Origin', '*')
     reply.header('Access-Control-Allow-Headers', '*')
@@ -29,8 +29,8 @@ export async function buildApp() {
   await app.register(subRoutes)
   await app.register(configRoutes)
   await app.register(manifestRoutes)
+  await app.register(streamCacheRoutes)
 
-  // Serve Web UI static
   const publicDir = path.resolve(__dirname, '../../server/public')
   await app.register(fastifyStatic, {
     root: publicDir,

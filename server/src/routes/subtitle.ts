@@ -4,24 +4,28 @@ import { extractSrt, UnsupportedCodecError, NoSubtitleError } from '../extractor
 import { parseSrt, rebuildSrt } from '../extractor/srt.js'
 import { translateBatch } from '../translator/openai-adapter.js'
 import { getCache, setCache } from '../cache/index.js'
+import { getStreamUrl } from '../cache/streamCache.js'
 import { cacheKey } from '../utils/hash.js'
 import { resolveToDirectUrl } from '../utils/torrent.js'
 import fs from 'fs/promises'
 
 export default async function subtitleRoutes(app: FastifyInstance) {
   app.post('/api/subtitle', async (req, reply) => {
-    const { imdbId, type, season, episode, targetLang, sourceLang = 'auto', openai, url, fileHash, torboxToken } = req.body as any
+    const { imdbId, type, season, episode, targetLang, sourceLang = 'auto', openai, url, fileHash } = req.body as any
     if (!imdbId || !targetLang || !openai?.apiKey) {
       return reply.code(400).send({ error: 'MISSING_PARAMS', message: 'imdbId, targetLang, openai.apiKey required' })
     }
 
-    // Resolve url if not provided (subtitle-independent addon doesn't receive stream url)
+    // Auto-capture: try url -> streamCache -> torrentio http
     let directUrl: string | null = url || null
     if (!directUrl) {
-      const token = torboxToken || process.env.TORBOX_TOKEN
-      directUrl = await resolveToDirectUrl(imdbId, type || 'movie', season, episode, token)
+      const key = season !== undefined && episode !== undefined ? `${imdbId}:${season}:${episode}` : imdbId
+      directUrl = getStreamUrl(key)
+    }
+    if (!directUrl) {
+      directUrl = await resolveToDirectUrl(imdbId, type || 'movie', season, episode)
       if (!directUrl) {
-        return reply.code(404).send({ error: 'NO_URL', message: 'No direct http link found. Provide `url` field or configure Torbox API key in /configure. Try selecting a WEB-DL version.' })
+        return reply.code(404).send({ error: 'NO_URL', message: 'Không tìm thấy http link. Addon sẽ tự bắt stream khi bạn chọn stream từ addon này. Hãy chọn stream có chữ [Embedded-Translate] hoặc thử bản WEB-DL khác.' })
       }
     }
 
@@ -35,7 +39,7 @@ export default async function subtitleRoutes(app: FastifyInstance) {
       const TEXT_CODECS = ['subrip','ass','ssa','mov_text','srt']
       const textStreams = streams.filter(s => TEXT_CODECS.includes(s.codec_name))
       if (streams.length > 0 && textStreams.length === 0) {
-        return reply.code(400).send({ error: 'UNSUPPORTED_CODEC', message: `PGS bitmap not supported in MVP. Found: ${streams.map(s=>s.codec_name).join(',')}. Hãy chọn bản WEB-DL/BluRay encode khác.` })
+        return reply.code(400).send({ error: 'UNSUPPORTED_CODEC', message: `PGS bitmap không hỗ trợ. Found: ${streams.map(s=>s.codec_name).join(',')}. Hãy chọn bản WEB-DL.` })
       }
       if (textStreams.length === 0 && streams.length === 0) {
         return reply.code(404).send({ error: 'NO_TEXT_SUBTITLE', message: 'No subtitle streams found in file' })
