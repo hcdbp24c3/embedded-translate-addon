@@ -12,25 +12,39 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 export async function buildApp() {
   const app = Fastify({ logger: false })
+
+  // CORS early
+  app.addHook('onRequest', async (req, reply) => {
+    reply.header('Access-Control-Allow-Origin', '*')
+    reply.header('Access-Control-Allow-Headers', '*')
+    reply.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+    if (req.method === 'OPTIONS') {
+      reply.code(204).send()
+      return
+    }
+  })
+
   await app.register(healthRoutes)
   await app.register(subtitleRoutes)
   await app.register(subRoutes)
   await app.register(configRoutes)
   await app.register(manifestRoutes)
 
-  // Serve Web UI static at /configure and /assets
-  const publicDir = path.join(__dirname, '../../server/public')
-  await app.register(fastifyStatic, { root: publicDir, prefix: '/', wildcard: false, decorateReply: false })
-
-  app.get('/configure', async (req, reply) => {
-    return reply.sendFile('index.html', publicDir)
+  // Serve Web UI static
+  const publicDir = path.resolve(__dirname, '../../server/public')
+  await app.register(fastifyStatic, {
+    root: publicDir,
+    prefix: '/',
+    wildcard: false,
+    index: false
   })
 
-  // CORS for addon
-  app.addHook('onSend', async (req, reply, payload) => {
-    reply.header('Access-Control-Allow-Origin', '*')
-    reply.header('Access-Control-Allow-Headers', '*')
-    return payload
+  app.get('/configure', async (req, reply) => {
+    return reply.sendFile('index.html')
+  })
+
+  app.get('/', async (req, reply) => {
+    return reply.redirect('/configure')
   })
 
   return app
