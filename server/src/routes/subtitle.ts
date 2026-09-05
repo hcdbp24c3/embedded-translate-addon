@@ -5,33 +5,42 @@ import { parseSrt, rebuildSrt } from '../extractor/srt.js'
 import { translateBatch } from '../translator/openai-adapter.js'
 import { getCache, setCache } from '../cache/index.js'
 import { cacheKey } from '../utils/hash.js'
+import { resolveToDirectUrl } from '../utils/torrent.js'
 import fs from 'fs/promises'
 
 export default async function subtitleRoutes(app: FastifyInstance) {
   app.post('/api/subtitle', async (req, reply) => {
-    const { imdbId, type, season, episode, targetLang, sourceLang = 'auto', openai, url, fileHash } = req.body as any
+    const { imdbId, type, season, episode, targetLang, sourceLang = 'auto', openai, url, fileHash, torboxToken } = req.body as any
     if (!imdbId || !targetLang || !openai?.apiKey) {
       return reply.code(400).send({ error: 'MISSING_PARAMS', message: 'imdbId, targetLang, openai.apiKey required' })
     }
-    if (!url) {
-      return reply.code(400).send({ error: 'NO_URL', message: 'Provide direct url (torbox resolved or http) in `url` field' })
+
+    // Resolve url if not provided (subtitle-independent addon doesn't receive stream url)
+    let directUrl: string | null = url || null
+    if (!directUrl) {
+      const token = torboxToken || process.env.TORBOX_TOKEN
+      directUrl = await resolveToDirectUrl(imdbId, type || 'movie', season, episode, token)
+      if (!directUrl) {
+        return reply.code(404).send({ error: 'NO_URL', message: 'No direct http link found. Provide `url` field or configure Torbox API key in /configure. Try selecting a WEB-DL version.' })
+      }
     }
+
     const key = cacheKey(imdbId, targetLang, openai.model, fileHash)
     const cached = await getCache(key)
     if (cached) {
       return { subtitles: [{ id: `embedded-${targetLang}`, url: cached, lang: targetLang, source: 'embedded' }], cached: true }
     }
     try {
-      const streams = await probeSubtitles(url)
+      const streams = await probeSubtitles(directUrl)
       const TEXT_CODECS = ['subrip','ass','ssa','mov_text','srt']
       const textStreams = streams.filter(s => TEXT_CODECS.includes(s.codec_name))
       if (streams.length > 0 && textStreams.length === 0) {
-        return reply.code(400).send({ error: 'UNSUPPORTED_CODEC', message: `PGS bitmap not supported in MVP. Found: ${streams.map(s=>s.codec_name).join(',')}` })
+        return reply.code(400).send({ error: 'UNSUPPORTED_CODEC', message: `PGS bitmap not supported in MVP. Found: ${streams.map(s=>s.codec_name).join(',')}. Hãy chọn bản WEB-DL/BluRay encode khác.` })
       }
       if (textStreams.length === 0 && streams.length === 0) {
-        return reply.code(404).send({ error: 'NO_TEXT_SUBTITLE', message: 'No subtitle streams found' })
+        return reply.code(404).send({ error: 'NO_TEXT_SUBTITLE', message: 'No subtitle streams found in file' })
       }
-      const srtContent = await extractSrt(url, 0)
+      const srtContent = await extractSrt(directUrl, 0)
       if (!srtContent.trim()) return reply.code(404).send({ error: 'NO_TEXT_SUBTITLE', message: 'Empty subtitle' })
       const parsed = parseSrt(srtContent)
       if (parsed.length === 0) return reply.code(404).send({ error: 'NO_TEXT_SUBTITLE', message: 'Failed to parse srt' })

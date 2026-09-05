@@ -27,11 +27,18 @@ describe('e2e', () => {
     expect(body).toHaveProperty('ok')
     await app.close()
   })
-  it('subtitle missing url returns 400', async () => {
+  it('subtitle missing url tries resolve and returns 404 when no http link', async () => {
     const app = await buildApp()
     const res = await app.inject({ method: 'POST', url: '/api/subtitle', payload: { imdbId: 'tt123', type: 'movie', targetLang: 'vi', openai: { baseUrl: 'http://mock', apiKey: 'sk', model: 'm' } } })
-    expect(res.statusCode).toBe(400)
+    expect(res.statusCode).toBe(404)
     expect(JSON.parse(res.payload).error).toBe('NO_URL')
+    await app.close()
+  })
+  it('manifest redirects to configure when config and html accept', async () => {
+    const app = await buildApp()
+    const res = await app.inject({ method: 'GET', url: '/manifest.json?config=eyJ0YXJnZXRMYW5nIjoidmkiLCJzb3VyY2VMYW5nIjoiYXV0byIsIm9wZW5haSI6eyJiYXNlVXJsIjoiaHR0cDovLzY2LjM2LjIyNi43MDo4MDA4L3YxIiwiYXBpS2V5IjoiMSIsIm1vZGVsIjoiUXdlbjMuNS05QiJ9fQ==', headers: { accept: 'text/html' } })
+    expect(res.statusCode).toBe(302)
+    expect(res.headers.location).toContain('/configure?config=')
     await app.close()
   })
 })

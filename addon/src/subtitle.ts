@@ -6,17 +6,16 @@ export async function handleSubtitle(args: any) {
   if (!config?.targetLang || !config?.openai?.apiKey) {
     return { subtitles: [] }
   }
-  // imdbId may be tt123 or tt123:1:2
   const imdbId = (args.id || '').split(':')[0]
   if (!imdbId) return { subtitles: [] }
   const backend = process.env.BACKEND_URL || 'http://localhost:3000'
-  // For MVP: expect url in extra (if StremThru provides), otherwise backend will need to resolve
   const payload: any = {
     imdbId,
     type: args.type || 'movie',
     targetLang: config.targetLang,
     sourceLang: config.sourceLang || 'auto',
     openai: config.openai,
+    torboxToken: config.torboxToken,
     url: args.extra?.url || config.url
   }
   if (args.id.includes(':')) {
@@ -30,7 +29,10 @@ export async function handleSubtitle(args: any) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     })
-    if (!res.ok) return { subtitles: [] }
+    if (!res.ok) {
+      // log for debugging but return empty
+      return { subtitles: [] }
+    }
     const data = await res.json() as any
     return { subtitles: data.subtitles || [] }
   } catch {
